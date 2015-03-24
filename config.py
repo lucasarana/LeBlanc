@@ -13,4 +13,6 @@ ssl_options = {
     #'ciphers':sslconf.ciphers_high7,
 }
 
-# dbInfoAnnie = {'host':'192.168.0.6', 'port':5432, 'database':'lega_partitions', 'user':'bo-admin', 'password':'J9vSTgCm'}
+database = {
+	'LeBlanc': ['localhost', 'le-blanc', 'UsB1zTSN', 'LeBlanc']
+}
