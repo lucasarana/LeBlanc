@@ -24,7 +24,7 @@ from NaixCommon.NaixLogger import NaixLogger
 class DALeBlanc:
 
 	@staticmethod
-	def get(inParams, tableName, extraParams={}):
+	def get(inParams, tableName, extraParams={}, overridePrivate=False):
 		""" Get data from database. Generic for all services... """
 
 		# Buscamos las tablas
@@ -35,8 +35,7 @@ class DALeBlanc:
 
 		# Agregamos las claves de los fields
 		for key, field in table['fields'].iteritems():
-			# if key in inParams:
-			if field['private'] is not True:
+			if overridePrivate is True or field['private'] is False:
 				fields.append(key) 
 
 		sql = "SELECT %s FROM %s" % (', '.join(fields), tableName)
@@ -49,7 +48,7 @@ class DALeBlanc:
 					sql += " WHERE %(key)s = %%(%(key)s)s" % ({'key': key})
 					where = True
 				elif param is not None:
-					sql += " AND %(key)s = %%(%(key)s)s" % ({'key':key})
+					sql += " OR %(key)s = %%(%(key)s)s" % ({'key':key})
 
 		if type(extraParams) == 'dict' and len(extraParams > 0):
 			for key, param in extraParams.iteritems():
@@ -94,37 +93,57 @@ class DALeBlanc:
 
 		fields = []
 
-		prevRow = DALeBlanc.get(inParams, tableName)
+		prevRow = DALeBlanc.get(inParams, tableName, overridePrivate=True)
 
 		where = None
 
 		# Recopilamos las claves y las asignamos al where
 		for key in table['key']:
-			if key in inParams and inParams[key] is not None and where is None:
-				where = ' WHERE %s = %%(%s)s' % (key, key)
-			elif key in inParams and inParams[key] is not None:
-				where += ' AND  %s = %%(%s)s' % (key, key)
+			if key in prevRow[0] and inParams[key] == prevRow[0][key]:
+				if key in inParams and inParams[key] is not None and where is None:
+					where = ' WHERE %s = %%(%s)s' % (key, key)
+				elif key in inParams and inParams[key] is not None: # Rancid!!
+					where += ' AND  %s = %%(%s)s' % (key, key)
 
 		for key, param in inParams.iteritems():
 			if key in prevRow[0] and param != prevRow[0][key]:
 				fields.append( '%s = %%(%s)s' % (key, key) )
-		
+
 		if len(fields) > 0:
 			
 			sql = 'UPDATE %s SET %s %s' % (tableName, ', '.join(fields), where)
 			result = DALeBlanc.query(database, sql, inParams)
 
 			return result			
-		
 		else:
-			print 'Nothing to update'
+			return False
+
+	@staticmethod
+	def delete(inParams, tableName):
+
+		# Buscamos las tablas
+		table    = getattr(getattr(tableDefinitions, 'tables'), tableName)
+		database = config.database[table['database']]
+
+		where = None
+		
+		# Recopilamos las claves y las asignamos al where
+		for key in table['key']:
+			if key in inParams and inParams[key] is not None and where is None:
+				where = ' WHERE %s = %%(%s)s' % (key, key)
+			elif key in inParams and inParams[key] is not None: # Rancid!!
+				where += ' AND  %s = %%(%s)s' % (key, key)
+
+		sql = 'DELETE FROM %s %s' % (tableName, where)
+		result = DALeBlanc.query(database, sql, inParams)
+		return result			
 		
 	@staticmethod
 	def query(database, query, params): 
 
 	    conn = MySQLdb.connect(*database) # Conectar a la base de datos 
 	    cursor = conn.cursor()         # Crear un cursor 
-	    cursor.execute(query, params)          # Ejecutar una consulta 
+	    result = cursor.execute(query, params)          # Ejecutar una consulta 
 	 
 	    if query.upper().startswith('SELECT'): 
 	        # data = cursor.fetchall()   # Traer los resultados de un select 
@@ -133,9 +152,9 @@ class DALeBlanc:
 	    elif query.upper().startswith('INSERT INTO'):
 	    	conn.commit()              # Hacer efectiva la escritura de datos 
 	    	data = cursor.lastrowid
-	    elif query.upper().startswith('UPDATE'):
+	    elif query.upper().startswith('UPDATE') or query.upper().startswith('DELETE'):
 	    	conn.commit()
-    		data = 1
+    		data = cursor.rowcount
 	    else: 
 			conn.commit()              # Hacer efectiva la escritura de datos 
 			data = None

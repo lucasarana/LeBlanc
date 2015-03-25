@@ -21,6 +21,7 @@ class tables:
 		'key': ['user_name', 'user_email'], 
 		'fields': {
 			'user_id': {'type': 'INTEGER', 'maxlength':12, 'notnull': False, 'private': True },
+			'client_id': {'type': 'INTEGER', 'maxlength':12, 'notnull': False, 'private': True },
 			'user_name': {'type': 'TINYINT', 'maxlength':32, 'notnull': True, 'private': False },
 			'user_description': {'type': 'TINYINT', 'maxlength':64, 'notnull': True, 'private': False },
 			'user_email': {'type': 'TINYINT', 'maxlength':120, 'notnull': True, 'private': False },
@@ -30,3 +31,4 @@ class tables:
 		},
 		'search_fields': ['user_id', 'user_name','user_email'],
 	}
+

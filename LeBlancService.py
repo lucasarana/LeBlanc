@@ -48,6 +48,15 @@ class LeBlancServices:
 			if len(keyInput) == 0:
 				return { 'valid': False, 'error': NaixCommon.Errors.KEY_MISSING() }
 
+		if method is 'delete':
+
+			keyInput = []
+
+			# Validamos que una de las claves exista
+			for key in table['key']:
+				if key in paramsGet and paramsGet[key] is None:
+					return { 'valid': False, 'error': NaixCommon.Errors.KEY_MISSING() }
+
 		# Validamos si los campos enviados son validos en la definicion de la tabla
 		for key, param in paramsGet.iteritems():
 
@@ -101,6 +110,8 @@ class LeBlancServices:
 
 		return {'paramsGet': paramsGet, 'extraParams': extraParams}
 
+	# ++++++++++ User Service ++++++++++ #
+	
 	@staticmethod
 	def getUser(handler):
 
@@ -109,12 +120,13 @@ class LeBlancServices:
 		paramsGet = {
 			'id': handler.get_argument('id', None),
 			'name': handler.get_argument('name', None),
+			'byClient': handler.get_argument('byClient', None),
 			'order_by': handler.get_argument('order_by', None),
 			'limit': handler.get_argument('limit', None)
 		}
 
 		# En el caso de recibir parametros con diferentes nombres a los de la base.
-		reName = {'name':'user_name','id':'user_id'}
+		reName = {'name':'user_name', 'id':'user_id', 'byClient':'client_id'}
 
 		# Extra Params, son todo aquel input que no sea un campo en la base de datos.
 		extraParams = {'order_by': None, 'limit': None }
@@ -134,7 +146,7 @@ class LeBlancServices:
 			return validate
 
 	@staticmethod
-	def setUser(handler):
+	def createUser(handler):
 
 		# Los argumentos se tratan con el handler.get_argument('argument_name')
 		# La IP se obtiene del comando handler.request.remote_ip
@@ -142,7 +154,8 @@ class LeBlancServices:
 			'user_name': handler.get_argument('user_name', None),
 			'user_description': handler.get_argument('user_description', None),
 			'user_email': handler.get_argument('user_email', None),
-			'user_password': handler.get_argument('user_password', None)
+			'user_password': handler.get_argument('user_password', None),
+			'client_id': handler.get_argument('client_id', None),
 		}
 
 		if paramsGet['user_password'] is not None:
@@ -182,7 +195,8 @@ class LeBlancServices:
 			'user_name': handler.get_argument('user_name', None),
 			'user_description': handler.get_argument('user_description', None),
 			'user_email': handler.get_argument('user_email', None),
-			'user_password': handler.get_argument('user_password', None)
+			'user_password': handler.get_argument('user_password', None),
+			'client_id': handler.get_argument('client_id', None),
 		}
 
 		# Hasheamos el password si esta
@@ -223,6 +237,43 @@ class LeBlancServices:
 			result = DALeBlanc.update(paramsGet, 'users')
 
 			if result:
-				return simplejson.dumps({'status':'SUCCESS', 'code': 201, 'data': result}, default=str)
+				return simplejson.dumps({'status':'SUCCESS', 'code': 201, 'description': 'Transaction update %s register\'s' % result}, default=str)
+			else:
+				return simplejson.dumps({'status':'NOTICE', 'code': 300, 'description': 'Nothing to Update'}, default=str)
 		else:
-			return validate['error'];
+			return validate['error']
+
+	@staticmethod
+	def deleteUser(handler):
+		""" Para eliminar un usuario es necesario proporcionar todas las claves """
+
+		# Los argumentos se tratan con el handler.get_argument('argument_name')
+		# La IP se obtiene del comando handler.request.remote_ip
+		paramsGet = {
+			'user_name': handler.get_argument('user_name', None),
+			'user_email': handler.get_argument('user_email', None),
+		}
+
+		# Validamos los input params
+		validate = LeBlancServices.validateParams(paramsGet, 'delete', 'users')
+
+		# Ejecutamos la query
+		if validate['valid']:
+
+			# Verificamos que el registro exista antes de eliminarlo.
+			currentRow = DALeBlanc.get(paramsGet, 'users')
+
+			if len(currentRow) <= 0:
+				return simplejson.dumps(NaixCommon.Errors.REGISTER_MISSING(), default=str)
+
+			result = DALeBlanc.delete(paramsGet, 'users')
+
+			if result:
+				return simplejson.dumps({'status':'SUCCESS', 'code': 201, 'description': 'Transaction delete %s register\'s' % result}, default=str)
+			else:
+				return simplejson.dumps({'status':'NOTICE', 'code': 300, 'description': 'Nothing to delete'}, default=str)
+
+		else:
+			return validate['error']
+
+	# ---------- User Service ---------- #
