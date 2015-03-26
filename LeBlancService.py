@@ -26,6 +26,9 @@ LEBLANC_VERSION = "ALPHA"
 
 class LeBlancServices:
 
+	##########################################
+	# ++++++++++ Custom Functions ++++++++++ #
+
 	@staticmethod
 	def validateParams(paramsGet, method, table):
 		""" Se valida que los parametros de entrada esten la deficinicon de la tabla en cuestion """
@@ -110,7 +113,179 @@ class LeBlancServices:
 
 		return {'paramsGet': paramsGet, 'extraParams': extraParams}
 
-	# ++++++++++ User Service ++++++++++ #
+	# ---------- Custom Functions ---------- #
+	##########################################
+	# ++++++++++ Client's Service ++++++++++ #
+	
+	@staticmethod
+	def getClient(handler):
+
+		# Los ar'gumentos se tratan con el handler.get_argument('argument_name')
+		# La IP se obtiene del comando handler.request.remote_ip
+		paramsGet = {
+			'id': handler.get_argument('id', None),
+			'name': handler.get_argument('name', None),
+			'status': handler.get_argument('status', None),
+			'order_by': handler.get_argument('order_by', None),
+			'limit': handler.get_argument('limit', None)
+		}
+
+		# En el caso de recibir parametros con diferentes nombres a los de la base.
+		reName = {'name':'client_name', 'id':'client_id', 'status': 'client_status'}
+
+		# Extra Params, son todo aquel input que no sea un campo en la base de datos.
+		extraParams = {'order_by': None, 'limit': None }
+
+		# Mergeamos los params, con los extra params y renombramos lo campos que se tiene que renombrar
+		params = LeBlancServices.mergeParams(paramsGet, reName, extraParams)
+
+		# Validamos los input params
+		validate = LeBlancServices.validateParams(params['paramsGet'], 'get', 'clients')
+
+		if validate['valid']:
+			result = DALeBlanc.get(params['paramsGet'], 'clients', params['extraParams'])
+
+			if result:
+				return simplejson.dumps({'status':'SUCCESS', 'code': 200, 'data': result}, default=str)
+		else:
+			return validate		
+
+	@staticmethod
+	def createClient(handler):
+
+		# Los argumentos se tratan con el handler.get_argument('argument_name')
+		# La IP se obtiene del comando handler.request.remote_ip
+		paramsGet = {
+			'client_name': handler.get_argument('client_name', None),
+			'client_description': handler.get_argument('client_description', None),
+			'client_email': handler.get_argument('client_email', None),
+			'client_password': handler.get_argument('client_password', None),
+		}
+
+		if paramsGet['client_password'] is not None:
+			# Buscamos el HASH
+			salt = DALeBlanc.get({'valid':True}, 'salts', {'limit': 1})
+			paramsGet['client_salt'] = salt[0]['salt']
+
+			# Hasheamos el password
+			password = hashlib.md5(paramsGet['client_password'] + paramsGet['client_salt']).hexdigest()
+			paramsGet['client_password'] = password
+
+		paramsGet['client_status'] = 'P'
+
+		# Validamos los input params
+		validate = LeBlancServices.validateParams(paramsGet, 'set', 'clients')
+
+		# Ejecutamos la query
+		if validate['valid']:
+
+			# Validamos que los datos a ingresar no existan.
+			currentRow = DALeBlanc.get(paramsGet, 'clients')
+
+			if len(currentRow) > 0:
+				return simplejson.dumps(NaixCommon.Errors.REGISTER_DUPLICATE(), default=str)
+
+			result = DALeBlanc.set(paramsGet, 'clients')
+
+			if result:
+				return simplejson.dumps({'status':'SUCCESS', 'code': 201, 'data': result}, default=str)
+		else:
+			return simplejson.dumps( validate['error'], default=str )
+
+	@staticmethod
+	def updateClient(handler):
+
+		# Los argumentos se tratan con el handler.get_argument('argument_name')
+		# La IP se obtiene del comando handler.request.remote_ip
+		paramsGet = {
+			'client_id': handler.get_argument('client_id', None),
+			'client_name': handler.get_argument('client_name', None),
+			'client_description': handler.get_argument('client_description', None),
+			'client_email': handler.get_argument('client_email', None),
+			'client_password': handler.get_argument('client_password', None),
+			'client_status': handler.get_argument('client_status', None),
+		}
+
+		# Hasheamos el password si esta
+		if paramsGet['client_password'] is not None:
+			# Buscamos el HASH
+			salt = DALeBlanc.get({'valid':True}, 'salts', {'limit': 1})
+			paramsGet['client_salt'] = salt[0]['salt']
+
+			# Lo Hasheamos
+			password = hashlib.md5(paramsGet['client_password'] + paramsGet['client_salt']).hexdigest()
+			paramsGet['client_password'] = password
+
+		# Validamos los input params
+		validate = LeBlancServices.validateParams(paramsGet, 'update', 'clients')
+
+		# Ejecutamos la query
+		if validate['valid']:
+
+			# Validamos que los datos a ingresar no existan.
+			currentRow = DALeBlanc.get(paramsGet, 'clients')
+
+			if len(currentRow) <= 0:
+				return simplejson.dumps(NaixCommon.Errors.REGISTER_MISSING(), default=str)
+
+			# Hacemos que los None se remplacen por el valor anterior
+			toRemove = []
+
+			for key, param in paramsGet.iteritems():
+				if param is None:
+					toRemove.append(key)
+				elif param == 'Null':
+					paramsGet[key] = None
+
+			if len(toRemove) > 0:
+				for param in toRemove:
+					del paramsGet[param]
+
+			result = DALeBlanc.update(paramsGet, 'clients')
+
+			if result:
+				return simplejson.dumps({'status':'SUCCESS', 'code': 201, 'description': 'Transaction update %s register\'s' % result}, default=str)
+			else:
+				return simplejson.dumps({'status':'NOTICE', 'code': 300, 'description': 'Nothing to Update'}, default=str)
+		else:
+			return validate['error']		
+
+	@staticmethod
+	def deleteClient(handler):
+		""" Para eliminar un usuario es necesario proporcionar todas las claves """
+
+		# Los argumentos se tratan con el handler.get_argument('argument_name')
+		# La IP se obtiene del comando handler.request.remote_ip
+		paramsGet = {
+			'client_name': handler.get_argument('client_name', None),
+			'client_email': handler.get_argument('client_email', None),
+		}
+
+		# Validamos los input params
+		validate = LeBlancServices.validateParams(paramsGet, 'delete', 'clients')
+
+		# Ejecutamos la query
+		if validate['valid']:
+
+			# Verificamos que el registro exista antes de eliminarlo.
+			currentRow = DALeBlanc.get(paramsGet, 'clients')
+
+			if len(currentRow) <= 0:
+				return simplejson.dumps(NaixCommon.Errors.REGISTER_MISSING(), default=str)
+
+			result = DALeBlanc.delete(paramsGet, 'clients')
+
+			if result:
+				return simplejson.dumps({'status':'SUCCESS', 'code': 201, 'description': 'Transaction delete %s register\'s' % result}, default=str)
+			else:
+				return simplejson.dumps({'status':'NOTICE', 'code': 300, 'description': 'Nothing to delete'}, default=str)
+
+		else:
+			return validate['error']
+
+	# ---------- Client's Service ---------- #
+	##########################################
+	# ++++++++++  User's Service  ++++++++++ #
 	
 	@staticmethod
 	def getUser(handler):
@@ -120,13 +295,14 @@ class LeBlancServices:
 		paramsGet = {
 			'id': handler.get_argument('id', None),
 			'name': handler.get_argument('name', None),
+			'status': handler.get_argument('status', None),
 			'byClient': handler.get_argument('byClient', None),
 			'order_by': handler.get_argument('order_by', None),
 			'limit': handler.get_argument('limit', None)
 		}
 
 		# En el caso de recibir parametros con diferentes nombres a los de la base.
-		reName = {'name':'user_name', 'id':'user_id', 'byClient':'client_id'}
+		reName = {'name':'user_name', 'id':'user_id', 'byClient':'client_id', 'status': 'user_status'}
 
 		# Extra Params, son todo aquel input que no sea un campo en la base de datos.
 		extraParams = {'order_by': None, 'limit': None }
@@ -169,6 +345,8 @@ class LeBlancServices:
 
 		# Validamos los input params
 		validate = LeBlancServices.validateParams(paramsGet, 'set', 'users')
+
+		paramsGet['user_status'] = 'P'
 
 		# Ejecutamos la query
 		if validate['valid']:
@@ -276,4 +454,5 @@ class LeBlancServices:
 		else:
 			return validate['error']
 
-	# ---------- User Service ---------- #
+	# ----------  User's Service  ---------- #
+	##########################################

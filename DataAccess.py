@@ -43,12 +43,19 @@ class DALeBlanc:
 		where = False
 
 		for key, param in inParams.iteritems():
-			if key in table['key']:
+
+			if key in table['key'] or key in table['search_fields']:
+
+				if key in table['search_fields'] and key not in table['key']:
+					cond = 'LIKE'
+				else:
+					cond = '='
+
 				if param is not None and where is False:
-					sql += " WHERE %(key)s = %%(%(key)s)s" % ({'key': key})
+					sql += " WHERE %(key)s %(cond)s %%(%(key)s)s" % ({'key': key, 'cond': cond })
 					where = True
 				elif param is not None:
-					sql += " OR %(key)s = %%(%(key)s)s" % ({'key':key})
+					sql += " AND %(key)s %(cond)s %%(%(key)s)s" % ({'key':key, 'cond': cond })
 
 		if type(extraParams) == 'dict' and len(extraParams > 0):
 			for key, param in extraParams.iteritems():
@@ -141,25 +148,25 @@ class DALeBlanc:
 	@staticmethod
 	def query(database, query, params): 
 
-	    conn = MySQLdb.connect(*database) # Conectar a la base de datos 
-	    cursor = conn.cursor()         # Crear un cursor 
-	    result = cursor.execute(query, params)          # Ejecutar una consulta 
+		conn = MySQLdb.connect(*database) # Conectar a la base de datos 
+		cursor = conn.cursor()         # Crear un cursor 
+		result = cursor.execute(query, params)          # Ejecutar una consulta 
 	 
-	    if query.upper().startswith('SELECT'): 
-	        # data = cursor.fetchall()   # Traer los resultados de un select 
+		if query.upper().startswith('SELECT'): 
+			# data = cursor.fetchall()   # Traer los resultados de un select 
 			columns = cursor.description 
 			data = [{columns[index][0]:column for index, column in enumerate(value)} for value in cursor.fetchall()]	        
-	    elif query.upper().startswith('INSERT INTO'):
-	    	conn.commit()              # Hacer efectiva la escritura de datos 
-	    	data = cursor.lastrowid
-	    elif query.upper().startswith('UPDATE') or query.upper().startswith('DELETE'):
-	    	conn.commit()
-    		data = cursor.rowcount
-	    else: 
+		elif query.upper().startswith('INSERT INTO'):
+			conn.commit()              # Hacer efectiva la escritura de datos 
+			data = cursor.lastrowid
+		elif query.upper().startswith('UPDATE') or query.upper().startswith('DELETE'):
+			conn.commit()
+			data = cursor.rowcount
+		else: 
 			conn.commit()              # Hacer efectiva la escritura de datos 
 			data = None
-	 
-	    cursor.close()                 # Cerrar el cursor 
-	    conn.close()                   # Cerrar la conexión 
-	 
-	    return data
+
+		cursor.close()                 # Cerrar el cursor 
+		conn.close()                   # Cerrar la conexión 
+
+		return data
